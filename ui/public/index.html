@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Document Assistant</title>
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css" rel="stylesheet">
+    <!-- HTMX -->
+    <script src="https://unpkg.com/htmx.org@1.9.6"></script>
+    
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="bg-light">
+    <!-- Navigation Header -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <i class="bi bi-robot me-2"></i>
+                AI Document Assistant
+            </a>
+            <div class="d-flex align-items-center">
+                <div class="navbar-text text-white-50 me-3">
+                    <i class="bi bi-circle-fill text-success me-1"></i>
+                    HTMX Powered
+                </div>
+                <!-- Theme Toggle -->
+                <div class="dropdown">
+                    <button class="theme-toggle dropdown-toggle" type="button" id="themeDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="bi bi-sun-fill" id="theme-icon"></i>
+                        <span id="theme-text">Light</span>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="themeDropdown">
+                        <li>
+                            <button class="dropdown-item" onclick="setTheme('light')">
+                                <i class="bi bi-sun-fill me-2"></i>Light
+                            </button>
+                        </li>
+                        <li>
+                            <button class="dropdown-item" onclick="setTheme('dark')">
+                                <i class="bi bi-moon-fill me-2"></i>Dark
+                            </button>
+                        </li>
+                        <li>
+                            <button class="dropdown-item" onclick="setTheme('auto')">
+                                <i class="bi bi-circle-half me-2"></i>Auto
+                            </button>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-4">
+        <div class="row">
+            <!-- Sidebar with tabs -->
+            <div class="col-lg-3 col-md-4">
+                <div class="card shadow-sm">
+                    <div class="card-header bg-white border-0">
+                        <h6 class="mb-0 text-muted">
+                            <i class="bi bi-list me-2"></i>
+                            Navigation
+                        </h6>
+                    </div>
+                    <div class="list-group list-group-flush">
+                        <button class="list-group-item list-group-item-action active" 
+                                onclick="showTab('chat')" id="chat-tab">
+                            <i class="bi bi-chat-dots me-2"></i>
+                            Chat Window
+                        </button>
+                        <button class="list-group-item list-group-item-action" 
+                                onclick="showTab('upload')" id="upload-tab">
+                            <i class="bi bi-cloud-upload me-2"></i>
+                            Document Upload
+                        </button>
+                        <button class="list-group-item list-group-item-action" 
+                                onclick="showTab('admin')" id="admin-tab">
+                            <i class="bi bi-gear me-2"></i>
+                            Admin Panel
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Status Card -->
+                <div class="card shadow-sm mt-3">
+                    <div class="card-body">
+                        <h6 class="card-title">
+                            <i class="bi bi-info-circle me-2"></i>
+                            Status
+                        </h6>
+                        <div class="d-flex align-items-center mb-2">
+                            <div class="spinner-border spinner-border-sm text-success me-2" role="status" id="status-spinner" style="display: none;">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <small class="text-muted" id="status-text">Ready</small>
+                        </div>
+                        <div class="progress" style="height: 4px;">
+                            <div class="progress-bar bg-success" role="progressbar" style="width: 0%" id="progress-bar"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Keyboard Shortcuts Card -->
+                <div class="card shadow-sm mt-3">
+                    <div class="card-body">
+                        <h6 class="card-title">
+                            <i class="bi bi-keyboard me-2"></i>
+                            Shortcuts
+                        </h6>
+                        <div class="small text-muted">
+                            <div class="mb-1">
+                                <kbd>Ctrl</kbd>+<kbd>1/2/3</kbd> - Switch tabs
+                            </div>
+                            <div class="mb-1">
+                                <kbd>T</kbd> - Toggle theme
+                            </div>
+                            <div>
+                                <kbd>Enter</kbd> - Send message
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main content area -->
+            <div class="col-lg-9 col-md-8">
+                
+                <!-- Chat Tab -->
+                <div id="chat-content" class="tab-content">
+                    <div class="card shadow-sm">
+                        <div class="card-header bg-gradient bg-primary text-white">
+                            <h5 class="mb-0">
+                                <i class="bi bi-chat-dots me-2"></i>
+                                Ask Questions
+                            </h5>
+                            <small class="opacity-75">Ask questions about your uploaded documents</small>
+                        </div>
+                        <div class="card-body">
+                            <!-- Chat messages container -->
+                            <div id="chat-messages" class="chat-container mb-4" style="height: 400px; overflow-y: auto;">
+                                <div class="text-center text-muted py-5">
+                                    <i class="bi bi-chat-square-text display-4 text-muted mb-3"></i>
+                                    <p>Start by asking a question about your documents.</p>
+                                </div>
+                            </div>
+                            
+                            <!-- Chat input form -->
+                            <form hx-post="/api/ask" 
+                                  hx-target="#chat-messages" 
+                                  hx-swap="beforeend"
+                                  hx-on::after-request="this.reset(); updateStatus('Message sent')">
+                                <div class="input-group">
+                                    <input type="text" 
+                                           class="form-control" 
+                                           name="question" 
+                                           placeholder="Ask a question about your documents..."
+                                           required>
+                                    <button class="btn btn-primary" type="submit">
+                                        <i class="bi bi-send me-1"></i>
+                                        Send
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Upload Tab -->
+                <div id="upload-content" class="tab-content" style="display: none;">
+                    <div class="row">
+                        <!-- PDF Upload -->
+                        <div class="col-lg-4 mb-4">
+                            <div class="card shadow-sm h-100">
+                                <div class="card-header bg-danger text-white">
+                                    <h6 class="mb-0">
+                                        <i class="bi bi-file-earmark-pdf me-2"></i>
+                                        Upload PDF
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <form hx-post="/api/upload/pdf" 
+                                          hx-target="#pdf-result" 
+                                          hx-encoding="multipart/form-data"
+                                          hx-on::before-request="showLoading('pdf')"
+                                          hx-on::after-request="hideLoading('pdf')">
+                                        <div class="mb-3">
+                                            <label for="pdf-file" class="form-label">Select PDF file</label>
+                                            <input type="file" 
+                                                   class="form-control" 
+                                                   id="pdf-file" 
+                                                   name="file" 
+                                                   accept=".pdf"
+                                                   required>
+                                        </div>
+                                        <button type="submit" class="btn btn-danger">
+                                            <i class="bi bi-upload me-1"></i>
+                                            Upload PDF
+                                        </button>
+                                    </form>
+                                    <div id="pdf-result" class="mt-3"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Text File Upload -->
+                        <div class="col-lg-4 mb-4">
+                            <div class="card shadow-sm h-100">
+                                <div class="card-header bg-info text-white">
+                                    <h6 class="mb-0">
+                                        <i class="bi bi-file-earmark-text me-2"></i>
+                                        Upload Text File
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <form hx-post="/api/upload/text" 
+                                          hx-target="#text-result" 
+                                          hx-encoding="multipart/form-data"
+                                          hx-on::before-request="showLoading('text')"
+                                          hx-on::after-request="hideLoading('text')">
+                                        <div class="mb-3">
+                                            <label for="text-file" class="form-label">Select text file</label>
+                                            <input type="file" 
+                                                   class="form-control" 
+                                                   id="text-file" 
+                                                   name="file" 
+                                                   accept=".txt,.md,.csv"
+                                                   required>
+                                        </div>
+                                        <button type="submit" class="btn btn-info">
+                                            <i class="bi bi-upload me-1"></i>
+                                            Upload Text
+                                        </button>
+                                    </form>
+                                    <div id="text-result" class="mt-3"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Direct Text Upload -->
+                        <div class="col-lg-4 mb-4">
+                            <div class="card shadow-sm h-100">
+                                <div class="card-header bg-success text-white">
+                                    <h6 class="mb-0">
+                                        <i class="bi bi-textarea-t me-2"></i>
+                                        Direct Text Upload
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <form hx-post="/api/upload/direct" 
+                                          hx-target="#direct-result"
+                                          hx-on::after-request="this.reset()">
+                                        <div class="mb-3">
+                                            <label for="title" class="form-label">Title (optional)</label>
+                                            <input type="text" 
+                                                   class="form-control" 
+                                                   id="title" 
+                                                   name="title" 
+                                                   placeholder="Document title">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="text" class="form-label">Text content</label>
+                                            <textarea class="form-control" 
+                                                      id="text" 
+                                                      name="text" 
+                                                      rows="4" 
+                                                      placeholder="Paste or type your text here..."
+                                                      required></textarea>
+                                        </div>
+                                        <button type="submit" class="btn btn-success">
+                                            <i class="bi bi-plus-circle me-1"></i>
+                                            Add Text
+                                        </button>
+                                    </form>
+                                    <div id="direct-result" class="mt-3"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Admin Tab -->
+                <div id="admin-content" class="tab-content" style="display: none;">
+                    <div class="card shadow-sm">
+                        <div class="card-header bg-warning text-dark">
+                            <h5 class="mb-0">
+                                <i class="bi bi-gear me-2"></i>
+                                Admin Panel
+                            </h5>
+                            <small>Manage documents and system settings</small>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <h6 class="mb-0">Document Management</h6>
+                                        <button class="btn btn-outline-primary btn-sm" 
+                                                hx-get="/api/documents" 
+                                                hx-target="#documents-list">
+                                            <i class="bi bi-arrow-clockwise me-1"></i>
+                                            Refresh
+                                        </button>
+                                    </div>
+                                    
+                                    <div id="documents-list" 
+                                         hx-get="/api/documents" 
+                                         hx-trigger="load">
+                                        <div class="text-center py-4">
+                                            <div class="spinner-border text-primary" role="status">
+                                                <span class="visually-hidden">Loading...</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-4">
+                                    <div class="card bg-light">
+                                        <div class="card-body">
+                                            <h6 class="card-title text-danger">
+                                                <i class="bi bi-exclamation-triangle me-2"></i>
+                                                Danger Zone
+                                            </h6>
+                                            <p class="card-text small text-muted">
+                                                This will permanently delete all documents and clear the knowledge base.
+                                            </p>
+                                            <button class="btn btn-outline-danger btn-sm" 
+                                                    hx-post="/api/reset" 
+                                                    hx-target="#reset-result"
+                                                    hx-confirm="Are you sure you want to delete ALL documents? This action cannot be undone."
+                                                    hx-on::after-request="htmx.trigger('#documents-list', 'refresh')">
+                                                <i class="bi bi-trash me-1"></i>
+                                                Clear All Documents
+                                            </button>
+                                            <div id="reset-result" class="mt-2"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap 5 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
