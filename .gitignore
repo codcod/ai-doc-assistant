@@ -37,3 +37,7 @@ models/
 
 # Articles
 docs/article-*.md
+
+Frontend
+# Nested Node modules
+**/node_modules/
